@@ -26,7 +26,7 @@ print('Part 2:')
 for y in range(max(dots, key=lambda d: d[1])[1]+1):
     for x in range(max(dots, key=lambda d: d[0])[0]+1):
         if (x, y) in dots:
-            print('#', end='')
+            print('\u2588', end='')
         else:
             print(' ', end='')
     print()
