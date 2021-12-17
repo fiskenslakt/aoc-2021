@@ -1,52 +1,82 @@
-from aocd import submit, data as transmission
+from math import prod
 
-# transmission = '8A004A801A8002F478'              # 16 | 16
-# transmission = '620080001611562C8802118E34'      # 12 | 12
-# transmission = 'C0015000016115A2E0802F182340'    # 23 | 23
-# transmission = 'A0016C880162017C3686B18A3D4780'  # 31 | 31
+from aocd import data as transmission
 
-packet = ''.join(format(int(hex_digit, 16), '04b') for hex_digit in transmission)
-version_sum = 0
 
-# import pudb;pu.db
+class PacketDecoder:
+    @staticmethod
+    def calculate_value(type_id, values):
+        if type_id == 0:
+            return sum(values)
+        elif type_id == 1:
+            return prod(values)
+        elif type_id == 2:
+            return min(values)
+        elif type_id == 3:
+            return max(values)
+        elif type_id == 5:
+            return 1 if values[0] > values[1] else 0
+        elif type_id == 6:
+            return 1 if values[0] < values[1] else 0
+        elif type_id == 7:
+            return 1 if values[0] == values[1] else 0
 
-def read_packet(packet):
-    global version_sum
-    version = int(packet[0:3], 2)
-    type_id = int(packet[3:6], 2)
+    @staticmethod
+    def get_binary(transmission):
+        return ''.join(format(int(hex_digit, 16), '04b') for hex_digit in transmission)
 
-    version_sum += version
-    packet_length = 6
+    def read_packets(self, transmission):
+        self.version_sum = 0
+        packet = self.get_binary(transmission)
+        _, self.value = self._read_packet(packet)
 
-    if type_id == 4:
-        groups = zip(*[iter(packet[6:])]*5)
-        value = ''
-        while groups:
-            packet_length += 5
-            group = next(groups)
-            value += ''.join(group[1:])
-            if group[0] == '0':
-                break
-        # return int(value, 2), packet_length
-        return packet_length
-    else:
-        length_type_id = int(packet[6], 2)
-        if length_type_id == 0:
-            bit_length = int(packet[7:7+15], 2)
-            sub_packets = packet[7+15:7+15+bit_length]
-            bits_read = 0
-            while bits_read != bit_length:
-                bits_read += read_packet(sub_packets[bits_read:])
+    def _read_packet(self, packet):
+        version = int(packet[0:3], 2)
+        type_id = int(packet[3:6], 2)
+        values = []
 
-            return 7 + 15 + bits_read
-        elif length_type_id == 1:
-            n_sub_packets = int(packet[7:7+11], 2)
-            bits_read = 0
-            for _ in range(n_sub_packets):
-                packet_length = read_packet(packet[7+11+bits_read:])
-                bits_read += packet_length
+        self.version_sum += version
 
-            return 7 + 11 + bits_read
+        if type_id == 4:
+            bits_read = 6
+            groups = zip(*[iter(packet[6:])]*5)
+            value = ''
+            while groups:
+                bits_read += 5
+                group = next(groups)
+                value += ''.join(group[1:])
+                if group[0] == '0':
+                    break
 
-read_packet(packet)
-submit(version_sum)
+            return bits_read, int(value, 2)
+        else:
+            length_type_id = int(packet[6], 2)
+            if length_type_id == 0:
+                bit_length = int(packet[7:7+15], 2)
+                sub_packets = packet[7+15:7+15+bit_length]
+                bits_read = 0
+                while bits_read != bit_length:
+                    new_bits_read, value = self._read_packet(sub_packets[bits_read:])
+                    bits_read += new_bits_read
+                    values.append(value)
+
+                value = self.calculate_value(type_id, values)
+
+                return 7 + 15 + bits_read, value
+            elif length_type_id == 1:
+                n_sub_packets = int(packet[7:7+11], 2)
+                bits_read = 0
+                for _ in range(n_sub_packets):
+                    new_bits_read, value = self._read_packet(packet[7+11+bits_read:])
+                    bits_read += new_bits_read
+                    values.append(value)
+
+                value = self.calculate_value(type_id, values)
+
+                return 7 + 11 + bits_read, value
+
+
+pd = PacketDecoder()
+pd.read_packets(transmission)
+print('Part 1:', pd.version_sum)
+print('Part 2:', pd.value)
