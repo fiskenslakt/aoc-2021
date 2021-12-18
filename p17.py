@@ -1,6 +1,6 @@
 import re
 
-from aocd import  data
+from aocd import data
 
 
 def triangle_sum(n):
